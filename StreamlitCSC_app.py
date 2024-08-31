@@ -48,6 +48,7 @@ if uploaded_file is None:
 # Cargar y limpiar los datos
 df_Original = load_data(uploaded_file)
 df = df_Original.drop_duplicates()
+df['Serie']=df['Serie'].replace('En reposo', 'Ralentí')
 
 # Obtener valores clave para mostrar en la interfaz
 FechaInicio = df['Fecha de inicio'].max()
@@ -132,7 +133,7 @@ def graficar_barras(df, categoria_seleccionada):
         x='Serie', 
         y='Valor', 
         title=f'Categoría: {categoria_seleccionada} - {valor_unidades}',
-        labels={'Valor': 'Valor (unidades)', 'Serie': 'Serie'},
+        labels={'Valor':f'Valor ({valor_unidades})', 'Serie':''},
         template='plotly_white',
         color_discrete_sequence=['#367C2B', '#FFCC00', '#A2B5A1', '#556B2F', '#8B4513']
     )
@@ -184,7 +185,7 @@ categorias = df['Categoría'].unique()
 
 Combustible_consumido=df.loc[df['Categoría']=="Combustible consumido en período"]['Valor'].max()
 st.markdown("")
-st.markdown(f"<div style='font-size: 22px;'>El total de consumible consumido en el periodo es de {Combustible_consumido} l/hr </div>", unsafe_allow_html=True)
+st.markdown(f"<div style='font-size: 22px;'>El total de consumible consumido en el periodo es de {Combustible_consumido} l </div>", unsafe_allow_html=True)
 st.markdown("")
 # Mostrar gráficos en la misma fila
 col1, col2 = st.columns([1, 1])
@@ -224,15 +225,20 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
+# Corregir ralenti y filtros reporte
+df_Motor=df
+df_Motor=df_Motor.loc[df_Motor['Serie'].isin(['Ralentí', 'Cosecha', 'Trabajando'])]
+
 # Mostrar gráficos en la misma fila
 col1, col2 = st.columns([1, 1])
 
 with col1:
-    fig2_1 = graficar_barras(df, "Factor de carga prom del motor")
+    fig2_1 = graficar_barras(df_Motor,"Factor de carga prom del motor")
     st.plotly_chart(fig2_1)
 
 with col2:
-    fig2_2 = graficar_barras(df, "Régimen de motor promedio")
+    fig2_2 = graficar_barras(df_Motor, "Régimen de motor promedio")
     st.plotly_chart(fig2_2)
 
 st.markdown(
@@ -250,7 +256,7 @@ st.markdown(
             font-weight: bold;
             text-align: left;
             ">
-           Información sobre el tiempo y temperaturas de funcionamiento
+           Información temperaturas de funcionamiento
         </h2>
     </div>
     """,
@@ -266,25 +272,12 @@ Temperaturamax_ref=df.loc[df['Categoría']=="Temp máx refrigerante"]['Valor'].m
 TemperaturaProm_hidr=df.loc[df['Categoría']=="Temp promedio de aceite hidráulico"]['Valor'].max()
 st.markdown("")
 
-col1, col2 = st.columns([1,1])
-
-with col1:
-        st.markdown(f"<div style='font-size: 18px;font-weight: bold;'>Tiempos: </div>", unsafe_allow_html=True)
-        st.markdown(f"<div style='font-size: 18px;padding: 1px 20px'>Ralentí    ={TiempoRalenti} hr </div>", unsafe_allow_html=True)
-        st.markdown(f"<div style='font-size: 18px;padding: 1px 20px'>Cosecha    ={TiempoCosecha} hr </div>", unsafe_allow_html=True)
-        st.markdown(f"<div style='font-size: 18px;padding: 1px 20px'>Maniobra   ={TiempoManiobra} hr </div>", unsafe_allow_html=True)
-        st.markdown(f"<div style='font-size: 18px;padding: 1px 20px'>Transporte ={TiempoTransporte} hr </div>", unsafe_allow_html=True)
-        st.markdown("")
-        st.markdown(f"<div style='font-size: 18px;font-weight: bold;'>Temperaturas: </div>", unsafe_allow_html=True)
-        st.markdown(f"<div style='font-size: 18px;padding: 1px 20px'>Promedio Refrigerante      ={Temperaturaref_prom} °C </div>", unsafe_allow_html=True)
-        st.markdown(f"<div style='font-size: 18px;padding: 1px 20px'>Max Refrigerante           ={Temperaturamax_ref} °C </div>", unsafe_allow_html=True)
-        st.markdown(f"<div style='font-size: 18px;padding: 1px 20px'>Promedio Aceite Hidráulico ={TemperaturaProm_hidr} °C </div>", unsafe_allow_html=True)
-        st.markdown(f"<div style='font-size: 18px;padding: 1px 20px'>Max Aceite Hidráulico      ={Temperaturamax_hidr} °C </div>", unsafe_allow_html=True)
-
-with col2:
-        fig3_1 = graficar_pie(df, "Tiempo en temp de aceite hidráulico")
-        st.plotly_chart(fig3_1)
-
+st.markdown(f"<div style='font-size: 18px;font-weight: bold;'>Temperaturas: </div>", unsafe_allow_html=True)
+st.markdown(f"<div style='font-size: 18px;padding: 1px 20px'>Promedio Refrigerante      ={Temperaturaref_prom} °C </div>", unsafe_allow_html=True)
+st.markdown(f"<div style='font-size: 18px;padding: 1px 20px'>Max Refrigerante           ={Temperaturamax_ref} °C </div>", unsafe_allow_html=True)
+st.markdown(f"<div style='font-size: 18px;padding: 1px 20px'>Promedio Aceite Hidráulico ={TemperaturaProm_hidr} °C </div>", unsafe_allow_html=True)
+st.markdown(f"<div style='font-size: 18px;padding: 1px 20px'>Max Aceite Hidráulico      ={Temperaturamax_hidr} °C </div>", unsafe_allow_html=True)
+st.markdown("")
 st.markdown(
     """
     <div style="
@@ -311,7 +304,7 @@ st.markdown("")
 col1, col2,col3 = st.columns([1,1,1])
 
 with col1:
-        fig4_1 = graficar_barras(df,"Harvest Monitor System")
+        fig4_1 = graficar_pie(df,"Harvest Monitor System")
         st.plotly_chart(fig4_1)
 with col2:
         fig4_2 = graficar_pie(df, "AutoTrac™")
@@ -319,8 +312,7 @@ with col2:
 with col3:
         fig4_3 = graficar_pie(df, "SmartClean System Hours")
         st.plotly_chart(fig4_3)
-st.markdown("")
-st.markdown("")
+
 st.markdown(
     """
     <div style="
@@ -396,3 +388,29 @@ with col1:
 with col2:
         fig6_2 = graficar_barras(df, "Velocidad de avance prom")
         st.plotly_chart(fig6_2)
+
+st.markdown(
+    """
+    <div style="
+        background-color: #E0E0E0;
+        padding: 1px 10px;
+        border-radius: 5px;
+        display: flex;
+        ">
+        <h2 style="
+            color: #000000;
+            margin: 0;
+            font-size: 22px;
+            font-weight: bold;
+            text-align: left;
+            ">
+           Precision señal piloto automatico
+        </h2>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+st.markdown("")
+
+fig6_1 = graficar_barras(df,"Precisión del receptor StarFire™ de la máquina")
+st.plotly_chart(fig6_1)
