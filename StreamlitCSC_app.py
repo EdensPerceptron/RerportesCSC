@@ -32,23 +32,27 @@ st.markdown("")
 # Cargar los datos con caching para evitar recargar el archivo si no es necesario
 @st.cache_data
 def load_data(file):
-    data = pd.read_csv(file)
-    return data
+    if file is not None:
+        data = pd.read_csv(file)
+        return data
+    return None
 
-# Configuración del sidebar
-with st.sidebar:
-    st.header("Configuración")
-    uploaded_file = st.file_uploader("Elija un archivo")
+##st.sidebar.image("https://cdn.worldvectorlogo.com/logos/john-deere-6.svg", width=150)
+st.sidebar.header("Carga de Archivos")
+uploaded_file1 = st.sidebar.file_uploader("Archivo Semana Consolidada", key="file1")
+uploaded_file2 = st.sidebar.file_uploader("Archivo Horas de trabajo Motor", key="file2")
+uploaded_file3 = st.sidebar.file_uploader("Archivo Horas de Funcionamiento", key="file3")
 
-# Verificar si se ha cargado un archivo
-if uploaded_file is None:
-    st.info("Se requiere cargar un archivo", icon="ℹ️")
+# Verificar si se han cargado los tres archivos
+if not all([uploaded_file1, uploaded_file2, uploaded_file3]):
+    st.info("Se requiere cargar los tres archivos", icon="ℹ")
     st.stop()
 
-# Cargar y limpiar los datos
-df_Original = load_data(uploaded_file)
-df = df_Original.drop_duplicates()
-df['Serie']=df['Serie'].replace('En reposo', 'Ralentí')
+df = load_data(uploaded_file1).drop_duplicates()
+df['Serie'] = df['Serie'].replace('En reposo', 'Ralentí')
+df2 = load_data(uploaded_file2).drop_duplicates()
+df3 = load_data(uploaded_file3).drop_duplicates()
+
 
 # Obtener valores clave para mostrar en la interfaz
 FechaInicio = df['Fecha de inicio'].max()
@@ -99,29 +103,16 @@ st.markdown(f"**Periodo de Análisis:** Del {FechaInicio} al {FechaTerminación}
 
 # Expander para mostrar los datos cargados
 with st.expander("Vista de datos Cargados"):
-    st.dataframe(df)
+    tab1, tab2, tab3 = st.tabs(["Semana Consolidada", "Horas de trabajo Motor", "Horas de Funcionamiento"])
 
-st.markdown(
-    """
-    <div style="
-        background-color: #E0E0E0;
-        padding: 1px 10px;
-        border-radius: 5px;
-        display: flex;
-        ">
-        <h2 style="
-            color: #000000;
-            margin: 0;
-            font-size: 22px;
-            font-weight: bold;
-            text-align: left;
-            ">
-            Información sobre el consumo de combustible
-        </h2>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+    with tab1:
+        st.dataframe(df, use_container_width=True)
+
+    with tab2:
+        st.dataframe(df2, use_container_width=True)
+
+    with tab3:
+        st.dataframe(df3, use_container_width=True)
 
 # Función para graficar barras
 def graficar_barras(df, categoria_seleccionada):
@@ -175,6 +166,112 @@ def graficar_pie(df, categoria_seleccionada):
         font=dict(family="Arial", size=12),
     )
     return fig
+
+st.markdown(
+    """
+    <div style="
+        background-color: #E0E0E0;
+        padding: 1px 10px;
+        border-radius: 5px;
+        display: flex;
+        ">
+        <h2 style="
+            color: #000000;
+            margin: 0;
+            font-size: 22px;
+            font-weight: bold;
+            text-align: left;
+            ">
+            Información de operación diaria
+        </h2>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+st.markdown("")
+st.markdown("")
+# Mostrar gráficos en la misma fila
+col1, col2 = st.columns([1, 1])
+
+with col1:
+    table1 = df2.groupby('Fecha').agg(
+    Horas_Motor_Inicio=('Horas de trabajo del motor', 'min'),
+    Horas_Motor_Fin=('Horas de trabajo del motor', 'max'))
+    table1['Horas Trabajadas'] = table1['Horas_Motor_Fin'] - table1['Horas_Motor_Inicio']
+    table1=table1.sort_values(by='Fecha',ascending=False)
+    st.markdown("##### Horas de trabajo del motor") 
+    st.dataframe(table1)
+
+with col2:
+        # Convertir la columna 'Duración' a formato de timedelta, calcular los segundos, y luego a horas
+    df3['Duración_horas'] = pd.to_timedelta(df3['Duración']).dt.total_seconds() / 60 / 60
+
+    # Agrupar por 'Fecha' y 'Estado de máquina' y sumar las horas
+    df_agrupada = df3.groupby(['Fecha', 'Estado de máquina'])['Duración_horas'].sum().reset_index()
+
+    # Paleta de colores de John Deere
+    colores = {'Activado': '#367C2B',  # Verde John Deere
+            'Apag.': '#CDCDCD'}  # Gris John Deere
+
+    # Redondear la columna de duración a 2 decimales
+    df_agrupada['Duración_horas'] = df_agrupada['Duración_horas'].round(2)
+
+    # Calcular el porcentaje de cada duración por estado y fecha
+    total_por_fecha = df_agrupada.groupby('Fecha')['Duración_horas'].transform('sum')
+    df_agrupada['Porcentaje'] = (df_agrupada['Duración_horas'] / total_por_fecha) * 100
+
+    # Crear un texto que contenga tanto las horas como el porcentaje
+    df_agrupada['Texto'] = df_agrupada['Duración_horas'].astype(str) + ' hrs<br>' + df_agrupada['Porcentaje'].round(1).astype(str) + '%'
+
+    # Crear el gráfico con Plotly Express
+    fig_Funcionamiento = px.bar(df_agrupada, 
+                                x='Duración_horas', 
+                                y='Fecha', 
+                                color='Estado de máquina', 
+                                color_discrete_map=colores, 
+                                orientation='h', 
+                                text='Texto',  # Mostrar tanto horas como porcentaje
+                                )
+
+    # Configuración de la apariencia
+    fig_Funcionamiento.update_traces(texttemplate='%{text}', textposition='inside', marker=dict(line=dict(color='black', width=1)))
+
+    # Ajustar el diseño del gráfico
+    fig_Funcionamiento.update_layout(
+        xaxis_title='Duración en Horas',
+        yaxis_title='Fecha',
+        legend_title='Estado de Máquina',
+        template='plotly_white',
+        margin=dict(l=50, r=50, t=50, b=50)
+    )
+
+    # Mostrar el gráfico
+    st.markdown("##### Horas de Funcionamiento") 
+    st.plotly_chart(fig_Funcionamiento, use_container_width=True)
+
+
+st.markdown(
+    """
+    <div style="
+        background-color: #E0E0E0;
+        padding: 1px 10px;
+        border-radius: 5px;
+        display: flex;
+        ">
+        <h2 style="
+            color: #000000;
+            margin: 0;
+            font-size: 22px;
+            font-weight: bold;
+            text-align: left;
+            ">
+            Información sobre el consumo de combustible
+        </h2>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 
 # Asegurar que la columna 'Valor' sea numérica
@@ -389,27 +486,38 @@ with col2:
         fig6_2 = graficar_barras(df, "Velocidad de avance prom")
         st.plotly_chart(fig6_2)
 
-st.markdown(
-    """
-    <div style="
-        background-color: #E0E0E0;
-        padding: 1px 10px;
-        border-radius: 5px;
-        display: flex;
-        ">
-        <h2 style="
-            color: #000000;
-            margin: 0;
-            font-size: 22px;
-            font-weight: bold;
-            text-align: left;
+# Verifica si el campo "Precisión del receptor StarFire™ de la máquina" existe en el DataFrame
+if "Precisión del receptor StarFire™ de la máquina" in df.columns:
+    st.markdown(
+        """
+        <div style="
+            background-color: #E0E0E0;
+            padding: 1px 10px;
+            border-radius: 5px;
+            display: flex;
             ">
-           Precision señal piloto automatico
-        </h2>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+            <h2 style="
+                color: #000000;
+                margin: 0;
+                font-size: 22px;
+                font-weight: bold;
+                text-align: left;
+                ">
+            Precision señal piloto automatico
+            </h2>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    st.markdown("")
+
+    # Llama a la función personalizada para graficar
+    fig6_1 = graficar_barras(df, "Precisión del receptor StarFire™ de la máquina")
+    # Muestra el gráfico con Streamlit
+    st.plotly_chart(fig6_1)
+else:
+   ""
+
 st.markdown("")
 
 fig6_1 = graficar_barras(df,"Precisión del receptor StarFire™ de la máquina")
