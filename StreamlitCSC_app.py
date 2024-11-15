@@ -518,7 +518,3 @@ if "Precisión del receptor StarFire™ de la máquina" in df.columns:
 else:
    ""
 
-st.markdown("")
-
-fig6_1 = graficar_barras(df,"Precisión del receptor StarFire™ de la máquina")
-st.plotly_chart(fig6_1)
